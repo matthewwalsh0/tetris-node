@@ -1,0 +1,12 @@
+{
+  "name": "tetris-node",
+  "version": "1.0.0",
+  "main": "dist/app.js",
+  "scripts": {
+    "start": "tsc && node dist/app.js"
+  },
+  "devDependencies": {
+    "@types/node": "16.7.4",
+    "typescript": "4.4.2"
+  }
+}
