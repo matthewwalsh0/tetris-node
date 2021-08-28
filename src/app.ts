@@ -1,3 +1,4 @@
+import {ConsoleGUI} from './consoleGui';
 import {Game} from './game';
 
-new Game().start();
+new Game(new ConsoleGUI()).start();
