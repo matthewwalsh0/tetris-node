@@ -1,17 +1,10 @@
-import chalk from 'chalk';
-import readline from 'readline';
+import blessed from 'blessed';
 
-import {Tiles} from './Tiles';
+import {ScoreEntry} from './scores';
+import {Tiles} from './tiles';
 
-const CHARACTER_BORDER: string = '#';
-const CHARACTER_BLOCK: string = '#';
-
-const PIECE_COLOURS: Function[] = [
-  chalk.white.bgWhite, chalk.cyan.bgCyanBright, chalk.blue.bgBlue,
-  chalk.rgb(255, 165, 0).bgRgb(255, 165, 0), chalk.yellow.bgYellow,
-  chalk.green.bgGreen, chalk.rgb(128, 0, 128).bgRgb(128, 0, 128),
-  chalk.red.bgRed
-];
+const PIECE_COLOURS: string[] =
+    ['white', 'cyan', 'blue', '#FFA500', 'yellow', 'green', '#800080', 'red'];
 
 export class ConsoleGUI {
   private isLeftPressed: boolean;
@@ -26,35 +19,119 @@ export class ConsoleGUI {
     this.isDownPressed = false;
     this.isRotateRightPressed = false;
     this.isRotateLeftPressed = false;
-
-    this.initKeyHandlers();
   }
 
-  display(tiles: Tiles, score: number) {
-    const horizontalBorder: string =
-        Array.from({length: tiles.width + 2}, (x, i) => CHARACTER_BORDER)
-            .join('');
+  display(tiles: Tiles, score: number, highScores: ScoreEntry[]) {
+    const screen = blessed.screen({smartCSR: true, dockBorders: true});
+    screen.title = 'Tetris';
 
-    console.clear();
-    console.log('Score: %d\n', score);
-    console.log(horizontalBorder);
+    const singleWidth = (2 / screen.cols) * 100;
+    const singleHeight = (1 / screen.rows) * 100;
 
-    for (var y = 0; y < tiles.height; y++) {
-      let line = CHARACTER_BORDER;
+    const background = blessed.box({
+      width: (singleWidth * tiles.width + 4) + '%',
+      height: (singleHeight * tiles.height + 4) + '%',
+      tags: true,
+      border: 'line',
+      style: {border: {fg: '#f0f0f0'}}
+    });
 
-      for (var x = 0; x < tiles.width; x++) {
-        const value = tiles.get(x, y);
-        let output = value == 0 ? ' ' : PIECE_COLOURS[value](CHARACTER_BLOCK);
+    screen.append(background);
 
-        line += output;
-      }
+    const scoreBox = blessed.box({
+      left: (singleWidth * tiles.width + 3) + '%',
+      width: 'shrink',
+      height: 'shrink',
+      tags: true,
+      border: 'line',
+      style: {border: {fg: '#f0f0f0'}},
+      content: 'SCORE\n' + score
+    });
 
-      line += CHARACTER_BORDER;
+    screen.append(scoreBox);
 
-      console.log(line);
+    if (highScores.length) {
+      const highScoreBox = blessed.box({
+        left: (singleWidth * tiles.width + 3) + '%',
+        top: (singleHeight * 3) + '%',
+        width: 'shrink',
+        height: 'shrink',
+        tags: true,
+        border: 'line',
+        style: {border: {fg: '#f0f0f0'}},
+        content: 'HIGH SCORES\n' +
+            highScores.map(score => score.name + ' | ' + score.value).join('\n')
+      });
+
+      screen.append(highScoreBox);
     }
 
-    console.log(horizontalBorder);
+    for (var y = 0; y < tiles.height; y++) {
+      for (var x = 0; x < tiles.width; x++) {
+        const character: number = tiles.get(x, y);
+        if (character === 0) continue;
+
+        const left: number = (x + 1) * singleWidth;
+        const top: number = y * singleHeight;
+
+        const pieceBox = blessed.box({
+          top: top + '%',
+          left: left + '%',
+          width: singleWidth + '%',
+          height: singleHeight + '%',
+          tags: true,
+          style: {bg: PIECE_COLOURS[character]}
+        });
+
+        screen.append(pieceBox);
+      }
+    }
+
+    background.key(['d', 'right'], (ch, key) => {
+      this.isRightPressed = true;
+    });
+
+    background.key(['a', 'left'], (ch, key) => {
+      this.isLeftPressed = true;
+    });
+
+    background.key(['s', 'down'], (ch, key) => {
+      this.isDownPressed = true;
+    });
+
+    background.key('e', (ch, key) => {
+      this.isRotateRightPressed = true;
+    });
+
+    background.key('q', (ch, key) => {
+      this.isRotateLeftPressed = true;
+    });
+
+    background.key(['escape', 'C-c'], (ch, key) => {
+      return process.exit();
+    });
+
+    background.focus();
+    screen.render();
+  }
+
+  async inputName(): Promise<string> {
+    return new Promise(resolve => {
+      var screen = blessed.screen({});
+
+      var prompt = blessed.prompt({
+        left: 'center',
+        top: 'center',
+        height: 'shrink',
+        width: 'shrink',
+        border: 'line'
+      });
+
+      screen.append(prompt);
+      screen.render();
+
+      prompt.input('Enter your name:', '', (error, value) => resolve(value));
+    });
   }
 
   moveRight(): boolean {
@@ -85,34 +162,5 @@ export class ConsoleGUI {
     const value = this.isRotateLeftPressed;
     this.isRotateLeftPressed = false;
     return value;
-  }
-
-  private initKeyHandlers() {
-    readline.emitKeypressEvents(process.stdin);
-    process.stdin.setRawMode(true);
-    process.stdin.on('keypress', this.onKeyPress.bind(this));
-  }
-
-  private onKeyPress(str: any, key: any) {
-    if (this.isPendingInput()) return;
-
-    if (key.ctrl && key.name === 'c') {
-      process.exit();
-    } else if (key.name === 'right' || key.name === 'd') {
-      this.isRightPressed = true;
-    } else if (key.name === 'left' || key.name === 'a') {
-      this.isLeftPressed = true;
-    } else if (key.name === 'down' || key.name === 's') {
-      this.isDownPressed = true;
-    } else if (key.name === 'e') {
-      this.isRotateRightPressed = true;
-    } else if (key.name === 'q') {
-      this.isRotateLeftPressed = true;
-    }
-  }
-
-  private isPendingInput(): boolean {
-    return this.isRightPressed || this.isLeftPressed || this.isDownPressed ||
-        this.isRotateRightPressed || this.isRotateLeftPressed;
   }
 }

@@ -1,5 +1,6 @@
 import {GUI} from './gui';
 import {Piece} from './piece';
+import {ScoreEntry, Scores} from './scores';
 import {Tiles} from './tiles';
 
 const WIDTH: number = 10;
@@ -18,6 +19,7 @@ export class Game {
   score: number;
   end: boolean;
   gui: GUI;
+  highScores: ScoreEntry[];
 
   constructor(gui: GUI) {
     this.gui = gui;
@@ -28,17 +30,31 @@ export class Game {
     this.currentY = 0;
     this.score = 0;
     this.end = false;
+    this.highScores = [];
   }
 
   async start() {
-    this.setIntervalFactoringDuration(
-        this.onInputInterval.bind(this), INTERVAL_INPUT);
+    try {
+      this.highScores = await new Scores().getTop();
+    } catch (e) {
+    }
 
-    this.setIntervalFactoringDuration(
-        this.onGravityInterval.bind(this), INTERVAL_GRAVITY);
+    await Promise.all([
+      this.setIntervalFactoringDuration(
+          this.onInputInterval.bind(this), INTERVAL_INPUT),
+
+      this.setIntervalFactoringDuration(
+          this.onGravityInterval.bind(this), INTERVAL_GRAVITY)
+    ]);
+
+    const name = await this.gui.inputName();
+    const scores = new Scores();
+    await scores.add(name, this.score);
+
+    process.exit();
   }
 
-  private onInputInterval() {
+  private async onInputInterval() {
     const xChange: number = this.gui.moveRight() ? 1 :
         this.gui.moveLeft()                      ? -1 :
                                                    0;
@@ -53,17 +69,17 @@ export class Game {
 
     if (!pendingInput) return;
 
-    this.tryMove(xChange, yChange, rotateRight, rotateLeft);
+    await this.tryMove(xChange, yChange, rotateRight, rotateLeft);
     this.display();
   }
 
-  private onGravityInterval() {
-    this.tryMove(0, 1, false, false);
+  private async onGravityInterval() {
+    await this.tryMove(0, 1, false, false);
     this.score += GRAVITY_SCORE;
     this.display();
   }
 
-  private tryMove(
+  private async tryMove(
       xChange: number, yChange: number, rotateRight: boolean,
       rotateLeft: boolean) {
     const originalX: number = this.currentX;
@@ -90,7 +106,6 @@ export class Game {
     if (this.currentPiece.isCollision(this.tiles, newX, newY)) {
       if (originalY == 0) {
         this.end = true;
-        process.stdin.removeAllListeners();
         return;
       }
 
@@ -112,20 +127,29 @@ export class Game {
     const displayTiles = this.tiles.clone();
     this.currentPiece.draw(displayTiles, this.currentX, this.currentY);
 
-    this.gui.display(displayTiles, this.score);
+    this.gui.display(displayTiles, this.score, this.highScores);
   }
 
-  private setIntervalFactoringDuration(callback: Function, interval: number) {
-    if (this.end) return;
+  private setIntervalFactoringDuration(callback: Function, interval: number):
+      Promise<void> {
+    if (this.end) return Promise.resolve();
 
-    const start = new Date();
-    callback();
-    const duration = Game.elapsedSince(start);
-    const newInterval = duration > interval ? 0 : interval - duration;
+    return new Promise(async (resolve) => {
+      const start = new Date();
+      callback();
+      const duration = Game.elapsedSince(start);
+      const newInterval = duration > interval ? 0 : interval - duration;
 
-    setTimeout(() => {
-      this.setIntervalFactoringDuration(callback, interval);
-    }, newInterval);
+      await Game.delay(newInterval);
+      await this.setIntervalFactoringDuration(callback, interval);
+      resolve();
+    });
+  }
+
+  private static async delay(milliseconds: number) {
+    return new Promise(resolve => {
+      setTimeout(resolve, milliseconds);
+    })
   }
 
   private static checkFullRows(tiles: Tiles): number {
