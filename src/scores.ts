@@ -1,12 +1,10 @@
 import {Client} from 'pg';
 
+const DATABASE_DEFAULT: string = 'postgres';
+const DATABSE_TETRIS: string = 'tetris';
+const ERROR_CODE_NO_DATABSE: string = '3D000';
+
 export class Scores {
-  private client: Client;
-
-  constructor() {
-    this.client = new Client({database: 'postgres'});
-  }
-
   async add(name: string, score: number) {
     const client = await Scores.getClient();
     await client.query(
@@ -29,11 +27,11 @@ export class Scores {
 
   private static async getClient(): Promise<Client> {
     try {
-      const client = new Client({database: 'tetris'});
+      const client = new Client({database: DATABSE_TETRIS});
       await client.connect();
       return client;
     } catch (e: any) {
-      if (e.code === '3D000') {
+      if (e.code === ERROR_CODE_NO_DATABSE) {
         return await Scores.createDatabase();
       } else {
         throw e;
@@ -42,15 +40,15 @@ export class Scores {
   }
 
   private static async createDatabase(): Promise<Client> {
-    const defaultClient = new Client({database: 'postgres'});
+    const defaultClient = new Client({database: DATABASE_DEFAULT});
     await defaultClient.connect();
-    await defaultClient.query('CREATE DATABASE tetris');
+    await defaultClient.query('CREATE DATABASE ' + DATABSE_TETRIS);
     await defaultClient.end();
 
-    const tetrisClient = new Client({database: 'tetris'});
+    const tetrisClient = new Client({database: DATABSE_TETRIS});
     await tetrisClient.connect();
     await tetrisClient.query(
-        'CREATE TABLE scores (name varchar, score integer)');
+        'CREATE TABLE scores (id SERIAL PRIMARY KEY, name VARCHAR NOT NULL, score INTEGER NOT NULL)');
 
     return tetrisClient;
   }

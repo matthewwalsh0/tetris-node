@@ -87,7 +87,11 @@ export class Game {
 
     if (name && name.length) {
       const scores = new Scores();
-      await scores.add(name, this.score);
+
+      try {
+        await scores.add(name, this.score);
+      } catch (e) {
+      }
     }
 
     process.exit();
