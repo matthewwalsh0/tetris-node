@@ -21,39 +21,52 @@ export class ConsoleGUI {
     this.isRotateLeftPressed = false;
   }
 
-  display(tiles: Tiles, score: number, highScores: ScoreEntry[]) {
-    const screen = blessed.screen({smartCSR: true, dockBorders: true});
+  display(
+      tiles: Tiles, score: number, highScores: ScoreEntry[],
+      difficulty: number) {
+    const screen = blessed.screen({smartCSR: true});
     screen.title = 'Tetris';
 
     const singleWidth = (2 / screen.cols) * 100;
     const singleHeight = (1 / screen.rows) * 100;
 
     const background = blessed.box({
-      width: (singleWidth * tiles.width + 4) + '%',
-      height: (singleHeight * tiles.height + 4) + '%',
+      width: (singleWidth * tiles.width) + '%',
+      height: (singleHeight * tiles.height) + '%',
       tags: true,
-      border: 'line',
-      style: {border: {fg: '#f0f0f0'}}
+      style: {bg: 'white'}
     });
 
     screen.append(background);
 
     const scoreBox = blessed.box({
-      left: (singleWidth * tiles.width + 3) + '%',
+      left: (singleWidth * tiles.width + 4) + '%',
       width: 'shrink',
       height: 'shrink',
       tags: true,
       border: 'line',
       style: {border: {fg: '#f0f0f0'}},
-      content: 'SCORE\n' + score
+      content: 'SCORE\n' + (score + '').padStart(5, '0')
     });
 
     screen.append(scoreBox);
 
+    const difficultyBox = blessed.box({
+      left: (singleWidth * tiles.width + 14) + '%',
+      width: 'shrink',
+      height: 'shrink',
+      tags: true,
+      border: 'line',
+      style: {border: {fg: '#f0f0f0'}},
+      content: 'DIFFICULTY\n' + difficulty
+    });
+
+    screen.append(difficultyBox);
+
     if (highScores.length) {
       const highScoreBox = blessed.box({
-        left: (singleWidth * tiles.width + 3) + '%',
-        top: (singleHeight * 3) + '%',
+        left: (singleWidth * tiles.width + 4) + '%',
+        top: (singleHeight * 4) + '%',
         width: 'shrink',
         height: 'shrink',
         tags: true,
@@ -71,7 +84,7 @@ export class ConsoleGUI {
         const character: number = tiles.get(x, y);
         if (character === 0) continue;
 
-        const left: number = (x + 1) * singleWidth;
+        const left: number = x * singleWidth;
         const top: number = y * singleHeight;
 
         const pieceBox = blessed.box({

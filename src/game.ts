@@ -8,6 +8,7 @@ const HEIGHT: number = 24;
 const INTERVAL_FRAME = 16;
 const INTERVAL_GRAVITY: number = 62 * INTERVAL_FRAME;
 const INTERVAL_INPUT: number = 3 * INTERVAL_FRAME;
+const INTERVAL_DIFFICULTY: number = 310 * INTERVAL_FRAME;
 const ROW_SCORES: number[] = [0, 40, 100, 300, 1200];
 const GRAVITY_SCORE: number = 1;
 
@@ -17,11 +18,12 @@ export class Game {
   currentX: number;
   currentY: number;
   score: number;
+  difficulty: number;
   end: boolean;
   gui: GUI;
   highScores: ScoreEntry[];
 
-  constructor(gui: GUI) {
+  constructor(gui: GUI, difficulty: number) {
     this.gui = gui;
 
     this.tiles = new Tiles(WIDTH, HEIGHT);
@@ -29,6 +31,7 @@ export class Game {
     this.currentX = 5;
     this.currentY = 0;
     this.score = 0;
+    this.difficulty = difficulty;
     this.end = false;
     this.highScores = [];
   }
@@ -44,14 +47,14 @@ export class Game {
           this.onInputInterval.bind(this), INTERVAL_INPUT),
 
       this.setIntervalFactoringDuration(
-          this.onGravityInterval.bind(this), INTERVAL_GRAVITY)
+          this.onGravityInterval.bind(this),
+          () => INTERVAL_GRAVITY - (this.difficulty * INTERVAL_FRAME)),
+
+      this.setIntervalFactoringDuration(
+          this.onDifficultyInterval.bind(this), INTERVAL_DIFFICULTY)
     ]);
 
-    const name = await this.gui.inputName();
-    const scores = new Scores();
-    await scores.add(name, this.score);
-
-    process.exit();
+    this.onEnd();
   }
 
   private async onInputInterval() {
@@ -77,6 +80,21 @@ export class Game {
     await this.tryMove(0, 1, false, false);
     this.score += GRAVITY_SCORE;
     this.display();
+  }
+
+  private async onEnd() {
+    const name: string = await this.gui.inputName();
+
+    if (name && name.length) {
+      const scores = new Scores();
+      await scores.add(name, this.score);
+    }
+
+    process.exit();
+  }
+
+  private onDifficultyInterval() {
+    this.difficulty += 1;
   }
 
   private async tryMove(
@@ -127,20 +145,26 @@ export class Game {
     const displayTiles = this.tiles.clone();
     this.currentPiece.draw(displayTiles, this.currentX, this.currentY);
 
-    this.gui.display(displayTiles, this.score, this.highScores);
+    this.gui.display(
+        displayTiles, this.score, this.highScores, this.difficulty);
   }
 
-  private setIntervalFactoringDuration(callback: Function, interval: number):
-      Promise<void> {
+  private setIntervalFactoringDuration(
+      callback: Function, interval: number|Function): Promise<void> {
     if (this.end) return Promise.resolve();
 
     return new Promise(async (resolve) => {
       const start = new Date();
       callback();
       const duration = Game.elapsedSince(start);
-      const newInterval = duration > interval ? 0 : interval - duration;
 
-      await Game.delay(newInterval);
+      const newInterval: number = (interval instanceof Function) ?
+          (interval as Function)() :
+          (interval as number);
+
+      const delay = duration > newInterval ? 0 : newInterval - duration;
+
+      await Game.delay(delay);
       await this.setIntervalFactoringDuration(callback, interval);
       resolve();
     });
